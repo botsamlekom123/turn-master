@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createRoundOrder, shuffle, type Player } from "./game";
+import {
+  createRaceFinishOrder,
+  createRoundOrder,
+  getChancePercent,
+  orderRaceResults,
+  shuffle,
+  weightedPick,
+  type Player,
+} from "./game";
 
 const players: Player[] = [
   { id: "ada", name: "Ada", losses: 0 },
@@ -59,5 +67,68 @@ describe("createRoundOrder", () => {
     expect(
       createRoundOrder(expandedPlayers, "loser-first", ["ada", "bima", "cici"], "cici"),
     ).toEqual(["cici", "ada", "bima", "dewi"]);
+  });
+});
+
+describe("createRaceFinishOrder", () => {
+  it("randomizes the podium and places the weighted loser last", () => {
+    expect(createRaceFinishOrder(players, "bima", () => 0).map((player) => player.id)).toEqual([
+      "cici",
+      "ada",
+      "bima",
+    ]);
+  });
+
+  it("rejects a race without two racers or a valid last-place player", () => {
+    expect(() => createRaceFinishOrder(players.slice(0, 1), "ada")).toThrow("Minimal dua pemain");
+    expect(() => createRaceFinishOrder(players, "unknown")).toThrow("Pemain terakhir");
+  });
+});
+
+describe("orderRaceResults", () => {
+  it("shows the last finisher first when selected", () => {
+    expect(orderRaceResults(["winner", "second", "last"], "last-first")).toEqual([
+      "last",
+      "second",
+      "winner",
+    ]);
+  });
+
+  it("keeps the winner first when selected", () => {
+    expect(orderRaceResults(["winner", "second", "last"], "winner-first")).toEqual([
+      "winner",
+      "second",
+      "last",
+    ]);
+  });
+
+  it("does not mutate the race finish order", () => {
+    const finishOrder = ["winner", "last"];
+    orderRaceResults(finishOrder, "last-first");
+    expect(finishOrder).toEqual(["winner", "last"]);
+  });
+});
+
+describe("weighted drawing", () => {
+  const weightedPlayers = [
+    { id: "ada", weight: 1 },
+    { id: "bima", weight: 3 },
+  ];
+
+  it("calculates each player's share of the total draw weight", () => {
+    expect(getChancePercent(1, 4)).toBe(25);
+    expect(getChancePercent(3, 4)).toBe(75);
+    expect(getChancePercent(1, 0)).toBe(0);
+  });
+
+  it("selects a player based on their weight", () => {
+    expect(weightedPick(weightedPlayers, () => 0).id).toBe("ada");
+    expect(weightedPick(weightedPlayers, () => 0.25).id).toBe("bima");
+    expect(weightedPick(weightedPlayers, () => 0.99).id).toBe("bima");
+  });
+
+  it("rejects empty or invalid weighted draws", () => {
+    expect(() => weightedPick([])).toThrow("Minimal satu pemain");
+    expect(() => weightedPick([{ id: "ada", weight: 0 }])).toThrow("Bobot undian");
   });
 });
